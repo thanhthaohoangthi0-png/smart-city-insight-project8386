@@ -1,70 +1,138 @@
-import streamlit as st
+streamlit as st
 import pandas as pd
-import numpy as np
 import pydeck as pdk
+import google.generativeai as genai
 import plotly.express as px
 
-# 1. Cấu hình trang rộng để trông chuyên nghiệp hơn
-st.set_page_config(page_title="Smart City Dashboard", layout="wide")
+# --- 1. CẤU HÌNH GIAO DIỆN CHUYÊN NGHIỆP (SLATE & CYAN) ---
+st.set_page_config(page_title="Nghệ An Smart City Dashboard", layout="wide")
 
-st.title("🏙️ Hệ Thống Giám Sát Đô Thị Thông Minh")
-st.markdown("Dữ liệu phân tích thời gian thực về giao thông và môi trường.")
+st.markdown("""
+    <style>
+    /* Nền Slate tối giản, thanh lịch */
+    .stApp { background-color: #0f172a; color: #f8fafc; }
 
-# --- SIDEBAR ---
-st.sidebar.header("Bộ Lọc Dữ Liệu")
-city_zone = st.sidebar.selectbox("Chọn khu vực:", ["Toàn thành phố", "Quận 1", "Quận 7", "TP. Thủ Đức"])
-st.sidebar.markdown("---")
-st.sidebar.write("Thiết kế bởi: [Tên của bạn]")
+    /* Tiêu đề thanh lịch có gạch chân nhẹ */
+    .main-title {
+        font-size: 32px; font-weight: 700; color: #38bdf8;
+        text-align: left; padding: 10px 0; border-bottom: 2px solid #1e293b;
+    }
 
-# --- GIẢ LẬP DỮ LIỆU ---
-# Tạo 500 điểm dữ liệu ngẫu nhiên xung quanh khu vực TP.HCM
-df = pd.DataFrame(
-    np.random.randn(500, 2) / [50, 50] + [10.762622, 106.660172],
-    columns=['lat', 'lon']
-)
-df['violation_level'] = np.random.randint(1, 100, 500) # Chỉ số giả lập
+    /* Làm nổi bật các số liệu (Metrics) */
+    [data-testid="stMetricValue"] { color: #38bdf8 !important; font-weight: 800; }
+    [data-testid="stMetric"] { background: #1e293b; padding: 15px; border-radius: 8px; }
 
-# --- PHẦN 1: CÁC CHỈ SỐ TỔNG QUAN ---
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Chỉ số AQI", "75", "-5%")
-col2.metric("Nhiệt độ", "31°C", "1.2°C")
-col3.metric("Mật độ giao thông", "Vừa phải", "Ổn định")
-col4.metric("Điểm rác thải", "12 điểm", "Tăng")
+    /* Chỉnh sidebar gọn gàng */
+    [data-testid="stSidebar"] { background-color: #1e293b; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 2. DỮ LIỆU THỰC TẾ 5 HUYỆN ---
+data_nghe_an = pd.DataFrame({
+    'Huyện': ['TP. Vinh', 'Hưng Nguyên', 'Nghi Lộc', 'Đô Lương', 'Nam Đàn'],
+    'lat': [18.6734, 18.6815, 18.7512, 18.9000, 18.7000],
+    'lon': [105.6813, 105.5821, 105.6214, 105.3000, 105.5000],
+    'AQI': [72, 55, 58, 48, 52],
+    'Nhiet_do': [24, 23, 23, 22, 22],
+    'Ngan_sach': [500, 150, 200, 180, 120]  # Đơn vị: Triệu VND
+})
+
+# Sidebar quản trị
+st.sidebar.markdown("### 🛠️ QUẢN TRỊ DỰ ÁN")
+st.sidebar.info("Tác giả: Hoàng Thị Thanh Thảo")
+st.sidebar.write("Trạng thái hệ thống: **Live**")
+
+st.markdown('<div class="main-title">🏙️ HỆ THỐNG GIÁM SÁT THÔNG MINH TỈNH NGHỆ AN</div>', unsafe_allow_html=True)
+
+# --- 3. KHU VỰC CÁC CHỈ SỐ NHANH (METRICS) ---
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("AQI Cao nhất (Vinh)", "72", "Cảnh báo")
+m2.metric("Nhiệt độ TB", "22.8 °C", "Ổn định")
+m3.metric("Số huyện", "5", "Đã kết nối")
+m4.metric("Trạng thái AI", "Sẵn sàng", "Xác thực")
 
 st.markdown("---")
 
-# --- PHẦN 2: BẢN ĐỒ 3D (PYDECK) ---
-st.subheader("📍 Bản đồ mật độ vi phạm giao thông (3D)")
+# --- 4. KHU VỰC BIỂU ĐỒ (GIẢI QUYẾT SỰ LẠC QUẺ) ---
+col_left, col_right = st.columns([1, 1])
 
-# Cấu hình lớp hiển thị 3D (Hexagon)
-layer = pdk.Layer(
-    "HexagonLayer",
-    df,
-    get_position=["lon", "lat"],
-    auto_highlight=True,
-    elevation_scale=50,
-    pickable=True,
-    elevation_range=[0, 300],
-    extruded=True,
-    coverage=1,
-)
+with col_left:
+    st.subheader("📊 So sánh Chỉ số AQI")
+    fig_bar = px.bar(data_nghe_an, x='Huyện', y='AQI',
+                     color_discrete_sequence=['#0ea5e9'], template="plotly_dark")
+    fig_bar.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+    st.plotly_chart(fig_bar, use_container_width=True)
 
-view_state = pdk.ViewState(latitude=10.76, longitude=106.66, zoom=12, pitch=45)
-
-st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view_state))
-
-# --- PHẦN 3: BIỂU ĐỒ TƯƠNG TÁC (PLOTLY) ---
-st.markdown("---")
-left_col, right_col = st.columns(2)
-
-with left_col:
-    st.subheader("📈 Xu hướng ô nhiễm theo giờ")
-    chart_data = pd.DataFrame(np.random.randn(20, 3), columns=['Bụi mịn', 'CO2', 'Tiếng ồn'])
-    fig = px.line(chart_data)
-    st.plotly_chart(fig, use_container_width=True)
-
-with right_col:
-    st.subheader("📊 Phân bổ ngân sách hạ tầng")
-    pie_df = pd.DataFrame({"Hạng mục": ["Cầu đường", "Cây xanh", "Chiếu sáng"], "Ngân sách": [50, 30, 20]})
-    fig_pie = px.pie(pie_df, values='Ngân sách', names='Hạng mục', hole=.3)
+with col_right:
+    st.subheader("💰 Phân bổ Ngân sách Hạ tầng")
+    fig_pie = px.pie(data_nghe_an, values='Ngan_sach', names='Huyện',
+                     hole=0.4, color_discrete_sequence=px.colors.sequential.Blues_r, template="plotly_dark")
+    fig_pie.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
     st.plotly_chart(fig_pie, use_container_width=True)
+
+# --- 5. BẢN ĐỒ CHÍNH (3D VISUALIZATION) ---
+st.subheader("📍 Bản đồ Mật độ 3D Không gian thực")
+view_state = pdk.ViewState(latitude=18.78, longitude=105.48, zoom=8.8, pitch=50)
+
+layer = pdk.Layer(
+    "ColumnLayer",
+    data_nghe_an,
+    get_position=['lon', 'lat'],
+    get_elevation='AQI',
+    elevation_scale=150,
+    radius=2200,
+    get_fill_color=[56, 189, 248, 200],  # Màu xanh Cyan tinh tế
+    pickable=True,
+)
+
+st.pydeck_chart(pdk.Deck(
+    layers=[layer],
+    initial_view_state=view_state,
+    map_style="mapbox://styles/mapbox/dark-v10",
+    tooltip={"text": "{Huyện}: AQI {AQI}"}
+))
+
+# --- 6. PHẦN CHATBOT (PHIÊN BẢN VẠN NĂNG - TỰ ĐỘNG DÒ TÌM MODEL) ---
+st.divider()
+st.subheader("🤖 Trợ lý AI (Hệ thống phân tích chuyên sâu)")
+
+genai.configure(api_key="AIzaSyAzfz7kTTIbWQpUHRWvAwLb-C6H0KE-gQs")
+
+@st.cache_resource
+def find_any_model():
+    try:
+        # Lấy danh sách tất cả các model mà API Key này hỗ trợ
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        if available_models:
+            # Ưu tiên lấy flash nếu có, không thì lấy cái đầu tiên trong danh sách
+            target = next((m for m in available_models if "flash" in m), available_models[0])
+            return genai.GenerativeModel(target)
+    except Exception as e:
+        st.error(f"Lỗi truy xuất danh sách Model: {e}")
+    return None
+
+model = find_any_model()
+
+if model is None:
+    st.warning("⚠️ Không tìm thấy mô hình AI nào khả dụng. Vui lòng kiểm tra lại API Key hoặc chạy lệnh 'pip install -U google-generativeai' lần cuối.")
+else:
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    if prompt := st.chat_input("Hỏi tôi về nhiệt độ, AQI hoặc ngân sách..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+            context = f"Dữ liệu Nghệ An hiện tại: {data_nghe_an.to_string(index=False)}."
+            try:
+                response = model.generate_content(f"{context}\n\nCâu hỏi: {prompt}")
+                st.markdown(response.text)
+                st.session_state.messages.append({"role": "assistant", "content": response.text})
+            except Exception as e:
+                st.error(f"⚠️ Trợ lý gặp lỗi khi trả lời: {e}")
